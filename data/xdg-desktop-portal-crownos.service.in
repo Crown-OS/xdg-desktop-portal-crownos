@@ -1,0 +1,12 @@
+[Unit]
+Description=Portal service (CrownOS implementation)
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.impl.portal.desktop.crownos
+ExecStart=@libexecdir@/xdg-desktop-portal-crownos
+Restart=on-failure
+Slice=session.slice
