@@ -2,22 +2,22 @@
 //! of the chosen button and exits 0, or exits 1 when the user declines.
 
 mod alert;
+mod answer;
 mod caution;
 mod escape;
 mod layout;
 mod view;
 
 use std::process::ExitCode;
-use std::sync::{Arc, OnceLock};
 
 use crownuikit::config::load_appearance;
 use crownuikit::util::inter_font;
 use xilem::{EventLoop, WindowId, Xilem};
 
 use alert::Alert;
-use view::{Answer, Dialog, app_logic};
+use answer::DECLINED;
+use view::{Dialog, app_logic};
 
-const DECLINED: u8 = 1;
 const MISUSED: u8 = 2;
 
 fn main() -> ExitCode {
@@ -30,10 +30,8 @@ fn main() -> ExitCode {
     };
     load_appearance();
 
-    let answer = Arc::new(OnceLock::new());
     let dialog = Dialog {
         alert,
-        answer: Arc::clone(&answer),
         window: WindowId::next(),
         tab: 0,
         picked: None,
@@ -43,11 +41,5 @@ fn main() -> ExitCode {
         eprintln!("crownos-portal-dialog: {error}");
         return ExitCode::from(MISUSED);
     }
-    match answer.get() {
-        Some(Answer::Choice(id)) => {
-            println!("{id}");
-            ExitCode::SUCCESS
-        }
-        Some(Answer::Cancel) | None => ExitCode::from(DECLINED),
-    }
+    ExitCode::from(DECLINED)
 }

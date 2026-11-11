@@ -55,8 +55,17 @@ pub async fn choose_source(
     if !finished.status.success() {
         return Ok(None);
     }
-    let picked = decode(String::from_utf8_lossy(&finished.stdout).trim());
+    let picked = last_line(&finished.stdout).and_then(decode);
     Ok(picked.filter(|source| catalog.contains(source)))
+}
+
+/// The dialog's answer, below anything its toolkit logged to stdout first.
+fn last_line(stdout: &[u8]) -> Option<&str> {
+    std::str::from_utf8(stdout)
+        .ok()?
+        .lines()
+        .next_back()
+        .map(str::trim)
 }
 
 struct Section {
@@ -216,7 +225,7 @@ pub async fn ask(question: &Question<'_>) -> anyhow::Result<bool> {
         .output()
         .await
         .with_context(|| format!("running {DIALOG}"))?;
-    Ok(finished.status.success() && String::from_utf8_lossy(&finished.stdout).trim() == GRANT)
+    Ok(finished.status.success() && last_line(&finished.stdout) == Some(GRANT))
 }
 
 fn wording(app: Option<&str>) -> (String, String) {
@@ -307,6 +316,16 @@ mod tests {
         assert_eq!(titles(SOURCE_MONITOR), ["Screens", "Workspaces"]);
         assert_eq!(titles(SOURCE_WINDOW), ["Windows"]);
         assert_eq!(describe(&Source::Window("w".into()), &catalog), "Notes");
+    }
+
+    #[test]
+    fn the_answer_is_read_below_toolkit_logs() {
+        let stdout = b"01:52:02.787Z  INFO window created\noutput:eDP-1\n";
+        assert_eq!(
+            last_line(stdout).and_then(decode),
+            Some(Source::Output("eDP-1".into()))
+        );
+        assert_eq!(last_line(b""), None);
     }
 
     #[test]

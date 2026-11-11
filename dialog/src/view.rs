@@ -2,8 +2,6 @@
 //! stack of full-width buttons, every choice tinted with the user's accent and
 //! Cancel last.
 
-use std::sync::{Arc, OnceLock};
-
 use crownuikit::config::{theme, themed};
 use crownuikit::widgets::{
     ButtonVariant, Choice, ToggleItem, button, choice_list, icon, soft_shadow, toggle_group,
@@ -17,19 +15,13 @@ use xilem::winit::dpi::LogicalSize;
 use xilem::{AnyWidgetView, Color, FontWeight, WidgetView, WindowId, WindowView};
 
 use crate::alert::{Alert, AlertIcon};
+use crate::answer::Answer;
 use crate::caution::caution;
 use crate::escape::dismiss_on_escape;
 use crate::layout;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Answer {
-    Choice(String),
-    Cancel,
-}
-
 pub struct Dialog {
     pub alert: Alert,
-    pub answer: Arc<OnceLock<Answer>>,
     pub window: WindowId,
     /// The picker's open section, and the row picked in it.
     pub tab: usize,
@@ -38,7 +30,7 @@ pub struct Dialog {
 
 impl Dialog {
     fn answer(&mut self, answer: Answer) {
-        let _ = self.answer.set(answer);
+        answer.deliver();
     }
 
     fn confirm(&mut self) {
@@ -54,7 +46,7 @@ impl Dialog {
 
 impl xilem::AppState for Dialog {
     fn keep_running(&self) -> bool {
-        self.answer.get().is_none()
+        false
     }
 }
 
