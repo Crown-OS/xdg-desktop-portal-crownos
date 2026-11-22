@@ -1,0 +1,46 @@
+# Maintainer: marvelxcodes <ramakrishnan0046@gmail.com>
+#
+# Builds the checkout this file lives in, so run makepkg from packaging/ with
+# the sibling path dependencies checked out next to the repository, as
+# .github/workflows/release.yml does: ../crownos-protocols, ../crownuikit and
+# ../vendor (plus whatever those path-depend on).
+
+pkgname=xdg-desktop-portal-crownos
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="xdg-desktop-portal backend for CrownOS"
+arch=(x86_64)
+url="https://github.com/Crown-OS/xdg-desktop-portal-crownos"
+license=('MIT OR Apache-2.0')
+depends=(
+  xdg-desktop-portal pipewire mesa glibc gcc-libs
+  wayland libxkbcommon vulkan-icd-loader fontconfig
+)
+makedepends=(cargo clang)
+options=(!lto !debug)
+
+_workspace="$startdir/.."
+
+prepare() {
+  cd "$_workspace"
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/^host: //p')"
+}
+
+build() {
+  cd "$_workspace"
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo build --release --frozen -p xdg-desktop-portal-crownos -p crownos-portal-dialog
+}
+
+package() {
+  cd "$_workspace"
+  install -Dm755 "$srcdir"/target/release/{xdg-desktop-portal-crownos,crownos-portal-dialog} -t "$pkgdir/usr/lib"
+  install -Dm644 data/crownos.portal -t "$pkgdir/usr/share/xdg-desktop-portal/portals"
+  install -Dm644 data/crownos-portals.conf -t "$pkgdir/usr/share/xdg-desktop-portal"
+  install -d "$pkgdir/usr/share/dbus-1/services" "$pkgdir/usr/lib/systemd/user"
+  sed 's|@libexecdir@|/usr/lib|g' data/org.freedesktop.impl.portal.desktop.crownos.service.in \
+    > "$pkgdir/usr/share/dbus-1/services/org.freedesktop.impl.portal.desktop.crownos.service"
+  sed 's|@libexecdir@|/usr/lib|g' data/xdg-desktop-portal-crownos.service.in \
+    > "$pkgdir/usr/lib/systemd/user/xdg-desktop-portal-crownos.service"
+  install -Dm644 LICENSE-{MIT,APACHE} -t "$pkgdir/usr/share/licenses/$pkgname"
+}
