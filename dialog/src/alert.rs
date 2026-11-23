@@ -16,8 +16,12 @@
 //!     --section Screens --choice output:DP-1="Entire Screen" --detail "3840 × 2160" \
 //!     --section Windows --choice window:abc=Inbox --detail Mail
 //! ```
+//!
+//! Both can also ask extra questions under the message; see [`crate::options`].
 
 use anyhow::{Context, bail};
+
+use crate::options::{self, AlertOption};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlertIcon {
@@ -48,6 +52,7 @@ pub struct Alert {
     pub cancel: String,
     /// The picker's confirm button; `None` for a question.
     pub confirm: Option<String>,
+    pub options: Vec<AlertOption>,
 }
 
 impl Alert {
@@ -59,6 +64,7 @@ impl Alert {
             sections: Vec::new(),
             cancel: "Cancel".to_owned(),
             confirm: None,
+            options: Vec::new(),
         };
         while let Some(flag) = args.next() {
             let value = args
@@ -97,9 +103,14 @@ impl Alert {
                         .context("--detail must follow a --choice")?
                         .detail = value;
                 }
-                _ => bail!("unknown option {flag}"),
+                _ => {
+                    if !options::apply_flag(&mut alert.options, &flag, value)? {
+                        bail!("unknown option {flag}");
+                    }
+                }
             }
         }
+        options::validate(&alert.options)?;
         alert.sections.retain(|section| !section.choices.is_empty());
         anyhow::ensure!(
             !alert.sections.is_empty(),

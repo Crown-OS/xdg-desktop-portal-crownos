@@ -200,12 +200,24 @@ pub struct Question<'a> {
     pub message: &'a str,
     pub grant: &'a str,
     pub deny: &'a str,
+    /// Dialog flags for extra questions, such as `--checkbox`.
+    pub option_arguments: &'a [String],
+    /// How many extra questions `option_arguments` asks.
+    pub option_count: usize,
+}
+
+/// What the user said, with the values of the extra questions when the
+/// dialog printed one for each.
+pub struct Answered {
+    pub granted: bool,
+    pub option_values: Option<Vec<String>>,
 }
 
 const GRANT: &str = "grant";
+const OPTION_PREFIX: &str = "option ";
 
 /// Whether the user said yes.
-pub async fn ask(question: &Question<'_>) -> anyhow::Result<bool> {
+pub async fn ask(question: &Question<'_>) -> anyhow::Result<Answered> {
     let finished = Command::new(dialog_binary())
         .args([
             "--icon",
@@ -219,13 +231,33 @@ pub async fn ask(question: &Question<'_>) -> anyhow::Result<bool> {
         .args(["--cancel", question.deny])
         .arg("--choice")
         .arg(format!("{GRANT}={}", question.grant))
+        .args(question.option_arguments)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .kill_on_drop(true)
         .output()
         .await
         .with_context(|| format!("running {DIALOG}"))?;
-    Ok(finished.status.success() && last_line(&finished.stdout) == Some(GRANT))
+    Ok(Answered {
+        granted: finished.status.success() && last_line(&finished.stdout) == Some(GRANT),
+        option_values: option_values(&finished.stdout, question.option_count),
+    })
+}
+
+/// The last `count` option lines the dialog printed.
+fn option_values(stdout: &[u8], count: usize) -> Option<Vec<String>> {
+    let values: Vec<&str> = std::str::from_utf8(stdout)
+        .ok()?
+        .lines()
+        .filter_map(|line| line.strip_prefix(OPTION_PREFIX))
+        .collect();
+    let first = values.len().checked_sub(count)?;
+    Some(
+        values[first..]
+            .iter()
+            .map(|value| value.trim().to_owned())
+            .collect(),
+    )
 }
 
 fn wording(app: Option<&str>) -> (String, String) {
@@ -326,6 +358,21 @@ mod tests {
             Some(Source::Output("eDP-1".into()))
         );
         assert_eq!(last_line(b""), None);
+    }
+
+    #[test]
+    fn option_values_are_read_above_the_answer() {
+        let stdout = b"INFO log\noption true\noption 1\ngrant\n";
+        assert_eq!(
+            option_values(stdout, 2),
+            Some(vec!["true".to_owned(), "1".to_owned()])
+        );
+        assert_eq!(
+            option_values(b"option false\n", 1),
+            Some(vec!["false".to_owned()])
+        );
+        assert_eq!(option_values(b"grant\n", 0), Some(Vec::new()));
+        assert_eq!(option_values(b"option true\ngrant\n", 2), None);
     }
 
     #[test]

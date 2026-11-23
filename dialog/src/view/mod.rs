@@ -18,13 +18,17 @@ use crownui::{
 use std::rc::Rc;
 
 use crate::alert::{Alert, AlertIcon, Section};
-use crate::answer::Answer;
+use crate::answer::{Answer, Reply};
 
+mod options;
 #[cfg(test)]
 mod tests;
 
-/// Where the user's answer goes: the binary prints it and exits, tests record it.
-type Respond = Rc<dyn Fn(Answer)>;
+use options::{OptionState, option_states, option_values, options_view};
+
+/// Where the user's answer goes, with the values of the extra questions: the
+/// binary prints it and exits, tests record it.
+type Respond = Rc<dyn Fn(&mut Runtime, Answer)>;
 
 const QUESTION_WIDTH: f32 = 320.0;
 /// The picker is wider: its rows carry a name and a line of detail.
@@ -38,25 +42,41 @@ const BUTTON_GAP: f32 = 8.0;
 /// About three rows show before the list scrolls.
 const LIST_MAX_HEIGHT: f32 = 236.0;
 
-/// The whole overlay: closing the dialog any other way than a button declines.
-pub fn root(alert: Alert, respond: impl Fn(Answer) + 'static) -> impl View {
-    let respond: Respond = Rc::new(respond);
+/// The whole overlay: closing the dialog any other way than a button declines,
+/// without the values of the extra questions, so nothing is remembered.
+pub fn root(alert: Alert, deliver: impl Fn(Reply) + 'static) -> impl View {
+    let deliver = Rc::new(deliver);
     component(move |cx| {
         provide_configured_theme(cx);
+        let states: Rc<[OptionState]> = option_states(cx, &alert.options).into();
+        let answered_states = Rc::clone(&states);
+        let answer_with_buttons = Rc::clone(&deliver);
+        let respond: Respond = Rc::new(move |runtime: &mut Runtime, answer| {
+            answer_with_buttons(Reply {
+                answer,
+                option_values: option_values(&answered_states, runtime),
+            });
+        });
         let open = cx.signal(true);
-        let decline = respond.clone();
         cx.effect(move |runtime| {
             if !open.get(runtime) {
-                decline(Answer::Cancel);
+                deliver(Reply {
+                    answer: Answer::Cancel,
+                    option_values: Vec::new(),
+                });
             }
         });
-        dialog(open, move || content(alert.clone(), respond.clone())).dismiss_on_scrim(false)
+        dialog(open, move || {
+            content(alert.clone(), Rc::clone(&states), respond.clone())
+        })
+        .dismiss_on_scrim(false)
     })
 }
 
-fn content(alert: Alert, respond: Respond) -> impl View {
+fn content(alert: Alert, states: Rc<[OptionState]>, respond: Respond) -> impl View {
     component(move |cx| {
         let theme = use_theme(cx);
+        let questions_below_message = (!states.is_empty()).then(|| options_view(cx, &states));
         let width = match alert.confirm {
             Some(_) => PICKER_WIDTH,
             None => QUESTION_WIDTH,
@@ -82,6 +102,7 @@ fn content(alert: Alert, respond: Respond) -> impl View {
             text(alert.message.clone())
                 .text_size(MESSAGE_SIZE)
                 .text_color(themed(theme, |theme| theme.text.body)),
+            questions_below_message,
             actions,
         ))
         .gap(CONTENT_GAP)
@@ -98,7 +119,7 @@ fn questions(alert: &Alert, respond: Respond) -> AnyView {
             button(choice.label.clone())
                 .variant(ButtonVariant::Tinted)
                 .stretch()
-                .on_click(move |_, _| respond(Answer::Choice(id.clone())))
+                .on_click(move |cx, _| respond(cx, Answer::Choice(id.clone())))
                 .boxed()
         })
         .collect();
@@ -143,7 +164,7 @@ fn picker(
                 Some(section.choices.get(row)?.id.clone())
             });
             if let Some(id) = id {
-                confirm_respond(Answer::Choice(id));
+                confirm_respond(cx, Answer::Choice(id));
             }
         });
     vstack((
@@ -172,7 +193,7 @@ fn cancel_button(label: &str, respond: Respond) -> impl View + Styled + use<> {
     button(label.to_owned())
         .variant(ButtonVariant::Secondary)
         .stretch()
-        .on_click(move |_, _| respond(Answer::Cancel))
+        .on_click(move |cx, _| respond(cx, Answer::Cancel))
 }
 
 fn section_icon(title: &str) -> &'static str {

@@ -2,6 +2,7 @@
 //! forwards app requests to.
 
 mod access;
+mod choices;
 mod control;
 pub mod options;
 mod request;
