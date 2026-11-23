@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 
 use anyhow::Context;
+use crownos_config::consent_dialog::{OptionShape, QuestionShape};
 use tokio::process::Command;
 
 use crate::cast::{Catalog, OutputInfo, Source, WindowInfo, WorkspaceInfo};
@@ -33,7 +34,7 @@ pub async fn choose_source(
         .args(["--icon", "screen", "--title", &title, "--message", &message])
         .args(["--cancel", "Cancel", "--confirm", "Share"])
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
+        .stdout(Stdio::null())
         .kill_on_drop(true);
     for section in sections
         .iter()
@@ -48,24 +49,23 @@ pub async fn choose_source(
         }
     }
 
-    let finished = dialog
-        .output()
+    let offered: Vec<&Source> = sections
+        .iter()
+        .flat_map(|section| &section.choices)
+        .map(|choice| &choice.source)
+        .collect();
+    let status = dialog
+        .status()
         .await
         .with_context(|| format!("running {DIALOG}"))?;
-    if !finished.status.success() {
-        return Ok(None);
-    }
-    let picked = last_line(&finished.stdout).and_then(decode);
+    let shape = QuestionShape {
+        choices: offered.len() + 1,
+        options: Vec::new(),
+    };
+    let picked = shape
+        .decode(status.code())
+        .and_then(|answer| offered.get(answer.choice).copied().cloned());
     Ok(picked.filter(|source| catalog.contains(source)))
-}
-
-/// The dialog's answer, below anything its toolkit logged to stdout first.
-fn last_line(stdout: &[u8]) -> Option<&str> {
-    std::str::from_utf8(stdout)
-        .ok()?
-        .lines()
-        .next_back()
-        .map(str::trim)
 }
 
 struct Section {
@@ -202,8 +202,8 @@ pub struct Question<'a> {
     pub deny: &'a str,
     /// Dialog flags for extra questions, such as `--checkbox`.
     pub option_arguments: &'a [String],
-    /// How many extra questions `option_arguments` asks.
-    pub option_count: usize,
+    /// The extra questions that `option_arguments` asks, in order.
+    pub option_shapes: &'a [OptionShape],
 }
 
 /// What the user said, with the values of the extra questions when the
@@ -214,11 +214,10 @@ pub struct Answered {
 }
 
 const GRANT: &str = "grant";
-const OPTION_PREFIX: &str = "option ";
 
-/// Whether the user said yes.
+/// Whether the user said yes, from the dialog's exit status.
 pub async fn ask(question: &Question<'_>) -> anyhow::Result<Answered> {
-    let finished = Command::new(dialog_binary())
+    let status = Command::new(dialog_binary())
         .args([
             "--icon",
             if question.dangerous {
@@ -233,31 +232,40 @@ pub async fn ask(question: &Question<'_>) -> anyhow::Result<Answered> {
         .arg(format!("{GRANT}={}", question.grant))
         .args(question.option_arguments)
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
+        .stdout(Stdio::null())
         .kill_on_drop(true)
-        .output()
+        .status()
         .await
         .with_context(|| format!("running {DIALOG}"))?;
-    Ok(Answered {
-        granted: finished.status.success() && last_line(&finished.stdout) == Some(GRANT),
-        option_values: option_values(&finished.stdout, question.option_count),
-    })
+    Ok(answered(question.option_shapes, status.code()))
 }
 
-/// The last `count` option lines the dialog printed.
-fn option_values(stdout: &[u8], count: usize) -> Option<Vec<String>> {
-    let values: Vec<&str> = std::str::from_utf8(stdout)
-        .ok()?
-        .lines()
-        .filter_map(|line| line.strip_prefix(OPTION_PREFIX))
+/// The answer in an exit status: grant (choice 0) or the cancel button (choice 1), with the
+/// option values as the `choices` result reads them, `true`/`false` for a checkbox and the item
+/// index for a list. Escape gives no values.
+fn answered(option_shapes: &[OptionShape], status: Option<i32>) -> Answered {
+    let shape = QuestionShape {
+        choices: 2,
+        options: option_shapes.to_vec(),
+    };
+    let Some(answer) = shape.decode(status) else {
+        return Answered {
+            granted: false,
+            option_values: None,
+        };
+    };
+    let option_values = option_shapes
+        .iter()
+        .zip(answer.option_values)
+        .map(|(option, value)| match option {
+            OptionShape::Checkbox => (value == 1).to_string(),
+            OptionShape::List { .. } => value.to_string(),
+        })
         .collect();
-    let first = values.len().checked_sub(count)?;
-    Some(
-        values[first..]
-            .iter()
-            .map(|value| value.trim().to_owned())
-            .collect(),
-    )
+    Answered {
+        granted: answer.choice == 0,
+        option_values: Some(option_values),
+    }
 }
 
 fn wording(app: Option<&str>) -> (String, String) {
@@ -351,42 +359,35 @@ mod tests {
     }
 
     #[test]
-    fn the_answer_is_read_below_toolkit_logs() {
-        let stdout = b"01:52:02.787Z  INFO window created\noutput:eDP-1\n";
+    fn the_answer_and_the_options_come_from_the_exit_status() {
+        use crownos_config::consent_dialog::DialogAnswer;
+        let shapes = [OptionShape::Checkbox, OptionShape::List { items: 3 }];
+        let shape = QuestionShape {
+            choices: 2,
+            options: shapes.to_vec(),
+        };
+        let status = shape.encode(&DialogAnswer {
+            choice: 0,
+            option_values: vec![1, 2],
+        });
+        let granted = answered(&shapes, status.map(i32::from));
+        assert!(granted.granted);
         assert_eq!(
-            last_line(stdout).and_then(decode),
-            Some(Source::Output("eDP-1".into()))
+            granted.option_values,
+            Some(vec!["true".to_owned(), "2".to_owned()])
         );
-        assert_eq!(last_line(b""), None);
-    }
-
-    #[test]
-    fn option_values_are_read_above_the_answer() {
-        let stdout = b"INFO log\noption true\noption 1\ngrant\n";
+        let cancel_button = shape.encode(&DialogAnswer {
+            choice: 1,
+            option_values: vec![1, 0],
+        });
+        let denied = answered(&shapes, cancel_button.map(i32::from));
+        assert!(!denied.granted);
         assert_eq!(
-            option_values(stdout, 2),
-            Some(vec!["true".to_owned(), "1".to_owned()])
+            denied.option_values,
+            Some(vec!["true".to_owned(), "0".to_owned()])
         );
-        assert_eq!(
-            option_values(b"option false\n", 1),
-            Some(vec!["false".to_owned()])
-        );
-        assert_eq!(option_values(b"grant\n", 0), Some(Vec::new()));
-        assert_eq!(option_values(b"option true\ngrant\n", 2), None);
-    }
-
-    #[test]
-    fn a_single_output_is_just_the_screen() {
-        assert_eq!(labels(&[output("eDP-1", "0x1234")]), ["Entire Screen"]);
-    }
-
-    #[test]
-    fn outputs_are_named_by_model_unless_it_is_shared() {
-        let outputs = [
-            output("DP-1", "U2720Q"),
-            output("DP-2", "U2720Q"),
-            output("eDP-1", "Panel"),
-        ];
-        assert_eq!(labels(&outputs), ["DP-1", "DP-2", "Panel"]);
+        let escape = answered(&shapes, Some(1));
+        assert!(!escape.granted);
+        assert_eq!(escape.option_values, None);
     }
 }

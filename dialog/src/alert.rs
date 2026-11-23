@@ -20,8 +20,9 @@
 //! Both can also ask extra questions under the message; see [`crate::options`].
 
 use anyhow::{Context, bail};
+use crownos_config::consent_dialog::{OptionShape, QuestionShape};
 
-use crate::options::{self, AlertOption};
+use crate::options::{self, AlertOption, OptionKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlertIcon {
@@ -117,6 +118,22 @@ impl Alert {
             "an alert needs at least one --choice"
         );
         Ok(alert)
+    }
+
+    /// What the exit status has to encode: the buttons, then the cancel button,
+    /// and the extra questions.
+    pub fn shape(&self) -> QuestionShape {
+        QuestionShape {
+            choices: self.choices().count() + 1,
+            options: self
+                .options
+                .iter()
+                .map(|option| match &option.kind {
+                    OptionKind::Checkbox { .. } => OptionShape::Checkbox,
+                    OptionKind::List { items, .. } => OptionShape::List { items: items.len() },
+                })
+                .collect(),
+        }
     }
 
     pub fn choices(&self) -> impl Iterator<Item = &Choice> {

@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 
+use crownos_config::consent_dialog::OptionShape;
 use zbus::zvariant::{OwnedValue, Value};
 
 pub const CHOICES: &str = "choices";
@@ -82,7 +83,23 @@ pub fn dialog_arguments(choices: &[AccessChoice]) -> Vec<String> {
     arguments
 }
 
-/// Puts the ids back on the values the dialog printed. `None` unless every
+/// The extra questions as the dialog's exit status encodes them.
+pub fn option_shapes(choices: &[AccessChoice]) -> Vec<OptionShape> {
+    choices
+        .iter()
+        .map(|choice| {
+            if choice.is_checkbox() {
+                OptionShape::Checkbox
+            } else {
+                OptionShape::List {
+                    items: choice.items.len(),
+                }
+            }
+        })
+        .collect()
+}
+
+/// Puts the ids back on the values the dialog answered. `None` unless every
 /// choice has a valid value.
 pub fn answers(choices: &[AccessChoice], values: &[String]) -> Option<Vec<(String, String)>> {
     if choices.len() != values.len() {

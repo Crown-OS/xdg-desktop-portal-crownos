@@ -45,6 +45,7 @@ impl Access {
         let registered = server.at(&handle, request).await.unwrap_or(false);
         let asked_choices = choices::read_choices(&options);
         let option_arguments = choices::dialog_arguments(&asked_choices);
+        let option_shapes = choices::option_shapes(&asked_choices);
         let question = chooser::Question {
             dangerous: option(&options, LEVEL).as_deref() == Some("dangerous"),
             title,
@@ -56,7 +57,7 @@ impl Access {
             grant: &option(&options, "grant_label").unwrap_or_else(|| "Allow".to_owned()),
             deny: &option(&options, "deny_label").unwrap_or_else(|| "Don't Allow".to_owned()),
             option_arguments: &option_arguments,
-            option_count: asked_choices.len(),
+            option_shapes: &option_shapes,
         };
         tracing::info!(app_id, title, "access dialog");
         let mut results = Results::new();

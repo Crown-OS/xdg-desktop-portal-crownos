@@ -521,8 +521,10 @@ name = "crownos-portal-dialog"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "crownos-config",
  "crowntest",
  "crownui",
+ "rustix",
 ]
 
 [[package]]
@@ -2528,6 +2530,7 @@ name = "xdg-desktop-portal-crownos"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "crownos-config",
  "crownos-protocols",
  "gbm",
  "pipewire",

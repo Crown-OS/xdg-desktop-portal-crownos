@@ -42,6 +42,17 @@ const BUTTON_GAP: f32 = 8.0;
 /// About three rows show before the list scrolls.
 const LIST_MAX_HEIGHT: f32 = 236.0;
 
+/// `root`, and `then` once two frames have been laid out: the surface is
+/// mapped by then.
+pub fn after_first_frames(root: impl View + 'static, then: fn()) -> impl View {
+    component(move |cx| {
+        cx.request_animation_frame(move |cx, _| {
+            cx.request_animation_frame(move |_, _| then());
+        });
+        root
+    })
+}
+
 /// The whole overlay: closing the dialog any other way than a button declines,
 /// without the values of the extra questions, so nothing is remembered.
 pub fn root(alert: Alert, deliver: impl Fn(Reply) + 'static) -> impl View {
