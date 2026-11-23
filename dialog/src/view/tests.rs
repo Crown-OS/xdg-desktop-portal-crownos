@@ -187,3 +187,19 @@ fn changed_options_are_reported_with_a_refusal_too() {
         }]
     );
 }
+
+#[test]
+fn escape_declines_without_remembering_the_options() {
+    let mut dialog = Dialog::open(QUESTION_WITH_OPTIONS);
+    dialog
+        .app
+        .click(role(Role::Switch).name("Remember this choice"));
+    dialog.app.pointer_move(10.0, 10.0).press_key("Escape");
+    assert_eq!(
+        dialog.replies(),
+        [Reply {
+            answer: Answer::Cancel,
+            option_values: Vec::new(),
+        }]
+    );
+}

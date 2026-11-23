@@ -42,23 +42,28 @@ const BUTTON_GAP: f32 = 8.0;
 /// About three rows show before the list scrolls.
 const LIST_MAX_HEIGHT: f32 = 236.0;
 
-/// The whole overlay: closing the dialog any other way than a button declines.
+/// The whole overlay: closing the dialog any other way than a button declines,
+/// without the values of the extra questions, so nothing is remembered.
 pub fn root(alert: Alert, deliver: impl Fn(Reply) + 'static) -> impl View {
+    let deliver = Rc::new(deliver);
     component(move |cx| {
         provide_configured_theme(cx);
         let states: Rc<[OptionState]> = option_states(cx, &alert.options).into();
         let answered_states = Rc::clone(&states);
+        let answer_with_buttons = Rc::clone(&deliver);
         let respond: Respond = Rc::new(move |runtime: &mut Runtime, answer| {
-            deliver(Reply {
+            answer_with_buttons(Reply {
                 answer,
                 option_values: option_values(&answered_states, runtime),
             });
         });
         let open = cx.signal(true);
-        let decline = respond.clone();
         cx.effect(move |runtime| {
             if !open.get(runtime) {
-                decline(runtime, Answer::Cancel);
+                deliver(Reply {
+                    answer: Answer::Cancel,
+                    option_values: Vec::new(),
+                });
             }
         });
         dialog(open, move || {
