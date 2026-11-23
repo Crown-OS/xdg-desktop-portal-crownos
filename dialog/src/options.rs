@@ -6,13 +6,10 @@
 //! ```
 //!
 //! `--initial` sets the last `--checkbox` (`true` or `false`) or the last
-//! `--list` (the index of an item). The dialog prints one `option VALUE`
-//! line for each, in order, above the answer: `true` or `false` for a
-//! checkbox, the index of the chosen item for a list.
+//! `--list` (the index of an item). Their values go into the exit status with
+//! the chosen button; see `crownos_config::consent_exit`.
 
 use anyhow::{Context, bail, ensure};
-
-pub const OUTPUT_PREFIX: &str = "option ";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionKind {

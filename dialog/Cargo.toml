@@ -7,6 +7,8 @@ license.workspace = true
 
 [dependencies]
 anyhow = "1.0.104"
+crownos-config = { path = "../../crownos-config", default-features = false }
+rustix = { version = "1", default-features = false, features = ["process", "std"] }
 crownui = { path = "../../crownui/crownui", default-features = false, features = [
   "wayland",
   "impeller",
