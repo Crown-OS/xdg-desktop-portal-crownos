@@ -36,3 +36,10 @@ encodes it; the dialog and the portal depend on crownos-config for it. That modu
 The compositor identifies the dialog when it connects, from its executable. Two frames after
 start, when its surface shows, the dialog turns `PR_SET_DUMPABLE` off, so no other process of
 the user can attach to it and answer.
+
+This depends on `kernel.yama.ptrace_scope=1`, which the CrownOS image sets. With 0, a process of
+the user could attach to the dialog in the frames before it turns dumpable off.
+
+The workspace builds with `panic = "abort"`, so a panic ends the dialog by a signal, which
+callers read as "nobody was asked". An unwinding panic would exit 101, which is in the answer
+range of the table.

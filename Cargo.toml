@@ -7,8 +7,14 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
+# A panic aborts: the dialog then ends by a signal, which reads as "nobody was asked". With
+# unwinding it would exit 101, which the exit-code table reads as an answer.
+[profile.dev]
+panic = "abort"
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+panic = "abort"
 
