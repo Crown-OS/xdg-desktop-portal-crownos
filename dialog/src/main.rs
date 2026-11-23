@@ -3,6 +3,7 @@
 
 mod alert;
 mod answer;
+mod options;
 mod view;
 
 use std::process::ExitCode;
@@ -35,7 +36,7 @@ fn main() -> ExitCode {
         .clear_color(TRANSPARENT)
         .font(kit::inter_font().to_vec(), Some(kit::INTER_FAMILY))
         .layer(layer);
-    if let Err(error) = crownui::run(view::root(alert, |answer| answer.deliver()), config) {
+    if let Err(error) = crownui::run(view::root(alert, |reply| reply.deliver()), config) {
         eprintln!("{NAMESPACE}: {error:#}");
         return ExitCode::from(MISUSED);
     }
