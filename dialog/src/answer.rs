@@ -1,10 +1,11 @@
 //! What the portal and the compositor read back: the exit status only, as
-//! `crownos_config::consent_exit` encodes it. The dialog prints nothing.
+//! `crownos_config::consent_dialog` encodes it. The dialog prints nothing. The
+//! cancel button keeps the values of the extra questions; Escape does not.
 
 use std::process;
 
-use crownos_config::consent_exit::DialogAnswer;
-pub use crownos_config::consent_exit::{DECLINED, MISUSED};
+use crownos_config::consent_dialog::DialogAnswer;
+pub use crownos_config::consent_dialog::{DECLINED, MISUSED};
 
 use crate::alert::Alert;
 
@@ -25,7 +26,14 @@ impl Reply {
     /// The exit status for this reply to `alert`.
     pub fn status(&self, alert: &Alert) -> u8 {
         match &self.answer {
-            Answer::Choice(id) => encode(alert, id, &self.option_values).unwrap_or(MISUSED),
+            Answer::Choice(id) => alert
+                .choices()
+                .position(|choice| choice.id == *id)
+                .and_then(|choice| encode(alert, choice, &self.option_values))
+                .unwrap_or(MISUSED),
+            Answer::Cancel if !alert.options.is_empty() => {
+                encode(alert, alert.choices().count(), &self.option_values).unwrap_or(DECLINED)
+            }
             Answer::Cancel => DECLINED,
         }
     }
@@ -37,8 +45,8 @@ impl Reply {
     }
 }
 
-fn encode(alert: &Alert, id: &str, option_values: &[String]) -> Option<u8> {
-    let choice = alert.choices().position(|choice| choice.id == id)?;
+/// The status of `choice` (the cancel button after the others) with these values.
+fn encode(alert: &Alert, choice: usize, option_values: &[String]) -> Option<u8> {
     let option_values = option_values
         .iter()
         .map(|value| match value.as_str() {
@@ -55,7 +63,7 @@ fn encode(alert: &Alert, id: &str, option_values: &[String]) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
-    use crownos_config::consent_exit::FIRST_ANSWER;
+    use crownos_config::consent_dialog::FIRST_ANSWER;
 
     use super::*;
 
@@ -93,11 +101,25 @@ mod tests {
                 option_values: vec![1, 1]
             })
         );
-        let cancel = Reply {
+        let cancel_button = Reply {
+            answer: Answer::Cancel,
+            option_values: vec!["true".into(), "0".into()],
+        };
+        let denied = alert
+            .shape()
+            .decode(Some(i32::from(cancel_button.status(&alert))));
+        assert_eq!(
+            denied,
+            Some(DialogAnswer {
+                choice: 2,
+                option_values: vec![1, 0]
+            })
+        );
+        let escape = Reply {
             answer: Answer::Cancel,
             option_values: Vec::new(),
         };
-        assert_eq!(cancel.status(&alert), DECLINED);
+        assert_eq!(escape.status(&alert), DECLINED);
         Ok(())
     }
 }

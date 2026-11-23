@@ -20,7 +20,7 @@
 //! Both can also ask extra questions under the message; see [`crate::options`].
 
 use anyhow::{Context, bail};
-use crownos_config::consent_exit::{OptionShape, QuestionShape};
+use crownos_config::consent_dialog::{OptionShape, QuestionShape};
 
 use crate::options::{self, AlertOption, OptionKind};
 
@@ -120,10 +120,11 @@ impl Alert {
         Ok(alert)
     }
 
-    /// What the exit status has to encode: the buttons and the extra questions.
+    /// What the exit status has to encode: the buttons, then the cancel button,
+    /// and the extra questions.
     pub fn shape(&self) -> QuestionShape {
         QuestionShape {
-            choices: self.choices().count(),
+            choices: self.choices().count() + 1,
             options: self
                 .options
                 .iter()

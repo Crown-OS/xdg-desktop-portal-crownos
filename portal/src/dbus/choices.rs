@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use crownos_config::consent_exit::OptionShape;
+use crownos_config::consent_dialog::OptionShape;
 use zbus::zvariant::{OwnedValue, Value};
 
 pub const CHOICES: &str = "choices";

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 
 use anyhow::Context;
-use crownos_config::consent_exit::{OptionShape, QuestionShape};
+use crownos_config::consent_dialog::{OptionShape, QuestionShape};
 use tokio::process::Command;
 
 use crate::cast::{Catalog, OutputInfo, Source, WindowInfo, WorkspaceInfo};
@@ -59,7 +59,7 @@ pub async fn choose_source(
         .await
         .with_context(|| format!("running {DIALOG}"))?;
     let shape = QuestionShape {
-        choices: offered.len(),
+        choices: offered.len() + 1,
         options: Vec::new(),
     };
     let picked = shape
@@ -240,11 +240,12 @@ pub async fn ask(question: &Question<'_>) -> anyhow::Result<Answered> {
     Ok(answered(question.option_shapes, status.code()))
 }
 
-/// The answer in an exit status: the option values as the `choices` result reads them,
-/// `true`/`false` for a checkbox and the item index for a list.
+/// The answer in an exit status: grant (choice 0) or the cancel button (choice 1), with the
+/// option values as the `choices` result reads them, `true`/`false` for a checkbox and the item
+/// index for a list. Escape gives no values.
 fn answered(option_shapes: &[OptionShape], status: Option<i32>) -> Answered {
     let shape = QuestionShape {
-        choices: 1,
+        choices: 2,
         options: option_shapes.to_vec(),
     };
     let Some(answer) = shape.decode(status) else {
@@ -262,7 +263,7 @@ fn answered(option_shapes: &[OptionShape], status: Option<i32>) -> Answered {
         })
         .collect();
     Answered {
-        granted: true,
+        granted: answer.choice == 0,
         option_values: Some(option_values),
     }
 }
@@ -359,10 +360,10 @@ mod tests {
 
     #[test]
     fn the_answer_and_the_options_come_from_the_exit_status() {
-        use crownos_config::consent_exit::DialogAnswer;
+        use crownos_config::consent_dialog::DialogAnswer;
         let shapes = [OptionShape::Checkbox, OptionShape::List { items: 3 }];
         let shape = QuestionShape {
-            choices: 1,
+            choices: 2,
             options: shapes.to_vec(),
         };
         let status = shape.encode(&DialogAnswer {
@@ -375,8 +376,18 @@ mod tests {
             granted.option_values,
             Some(vec!["true".to_owned(), "2".to_owned()])
         );
-        let declined = answered(&shapes, Some(1));
-        assert!(!declined.granted);
-        assert_eq!(declined.option_values, None);
+        let cancel_button = shape.encode(&DialogAnswer {
+            choice: 1,
+            option_values: vec![1, 0],
+        });
+        let denied = answered(&shapes, cancel_button.map(i32::from));
+        assert!(!denied.granted);
+        assert_eq!(
+            denied.option_values,
+            Some(vec!["true".to_owned(), "0".to_owned()])
+        );
+        let escape = answered(&shapes, Some(1));
+        assert!(!escape.granted);
+        assert_eq!(escape.option_values, None);
     }
 }

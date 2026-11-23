@@ -7,7 +7,7 @@
 //!
 //! `--initial` sets the last `--checkbox` (`true` or `false`) or the last
 //! `--list` (the index of an item). Their values go into the exit status with
-//! the chosen button; see `crownos_config::consent_exit`.
+//! the chosen button; see `crownos_config::consent_dialog`.
 
 use anyhow::{Context, bail, ensure};
 

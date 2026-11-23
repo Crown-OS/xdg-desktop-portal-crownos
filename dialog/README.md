@@ -14,17 +14,18 @@ crownos-portal-dialog --icon warning --title T --message M --cancel Deny \
 
 ## The answer
 
-The dialog prints nothing. The answer is the exit status, as `crownos_config::consent_exit`
-encodes it. That module is the one table that the dialog and every caller use.
+The dialog prints nothing. The answer is the exit status, as `crownos_config::consent_dialog`
+encodes it; the dialog and the portal depend on crownos-config for it. That module is the one table that the dialog and every caller use.
 
 | Status | Meaning |
 |---|---|
-| 1 | Declined: the cancel button, Escape, or the dialog closed |
+| 1 | Declined: Escape, or the dialog closed, without the extra questions' values |
 | 2 | Misused: bad arguments, or a question with too many answers |
 | 16–255 | Answered: `16 + choice × states + state` |
-| any other, or a signal | Read as declined |
+| any other, or a signal | Nobody was asked |
 
-- `choice` is the index of the chosen `--choice` button, counted over all sections.
+- `choice` is the index of the chosen `--choice` button, counted over all sections. The cancel
+  button counts as one more button after them, so a deny keeps the extra questions' values.
 - `state` holds the value of each extra question, the first one lowest: a checkbox has 2 values
   (0 off, 1 on), a list has one value per `--item` (its index). `states` is the product of
   those counts.

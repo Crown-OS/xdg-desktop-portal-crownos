@@ -1,5 +1,5 @@
 //! The alert xdg-desktop-portal-crownos and crownpositor ask the user with.
-//! Its exit status is the answer (`crownos_config::consent_exit`). Once its
+//! Its exit status is the answer (`crownos_config::consent_dialog`). Once its
 //! surface shows, it turns `PR_SET_DUMPABLE` off, so no other process of the
 //! user can attach to it and answer.
 
