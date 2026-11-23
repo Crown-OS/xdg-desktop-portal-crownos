@@ -12,5 +12,3 @@ lto = "thin"
 codegen-units = 1
 strip = "symbols"
 
-[patch.crates-io]
-vello_encoding = { path = "../vendor/vello_encoding-0.6.0" }

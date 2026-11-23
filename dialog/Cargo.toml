@@ -7,6 +7,12 @@ license.workspace = true
 
 [dependencies]
 anyhow = "1.0.104"
-blinc_icons = "0.5.1"
-crownuikit = { path = "../../crownuikit" }
-xilem = "0.4.0"
+crownui = { path = "../../crownui/crownui", default-features = false, features = [
+  "wayland",
+  "impeller",
+  "static",
+  "accessibility",
+] }
+
+[dev-dependencies]
+crowntest = { path = "../../crownui/crowntest" }

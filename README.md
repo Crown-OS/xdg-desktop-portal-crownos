@@ -6,7 +6,7 @@ video calls and anything else that asks the portal for a screen cast.
 | Crate | What it is |
 |---|---|
 | `portal` → `xdg-desktop-portal-crownos` | Serves `org.freedesktop.impl.portal.ScreenCast` (v5) on the session bus and streams the chosen screen, window or workspace over PipeWire. |
-| `dialog` → `crownos-portal-dialog` | The picker that asks what to share, and the portal's other alerts, built with crownuikit and tinted with the user's accent. |
+| `dialog` → `crownos-portal-dialog` | The picker that asks what to share, and the portal's other alerts, built with crownui and tinted with the user's accent. |
 
 Frames never leave the GPU. The portal allocates dmabufs through GBM for the
 PipeWire consumer, and hands the same buffers to crownpositor as the ring of a

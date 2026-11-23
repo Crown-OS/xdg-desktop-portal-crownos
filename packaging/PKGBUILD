@@ -2,8 +2,8 @@
 #
 # Builds the checkout this file lives in, so run makepkg from packaging/ with
 # the sibling path dependencies checked out next to the repository, as
-# .github/workflows/release.yml does: ../crownos-protocols, ../crownuikit and
-# ../vendor (plus whatever those path-depend on).
+# .github/workflows/release.yml does: ../crownos-protocols and ../crownui
+# (plus whatever those path-depend on).
 
 pkgname=xdg-desktop-portal-crownos
 pkgver=0.1.0

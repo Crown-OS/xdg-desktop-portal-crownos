@@ -12,8 +12,8 @@ pub enum Answer {
 }
 
 impl Answer {
-    /// Reports the answer and ends the process on the spot: xilem 0.4 stops
-    /// its event loop only for a window close, never after a button's action.
+    /// Reports the answer and ends the process on the spot, before the overlay
+    /// animates out.
     pub fn deliver(self) -> ! {
         match self {
             Self::Choice(id) => {
